@@ -1,0 +1,105 @@
+# This is a basic workflow to help you get started with Actions
+
+name: CI
+
+# Controls when the action will run. 
+on:
+  # Triggers the workflow on push or pull request events but only for the master branch
+  push:
+    tags:
+    - 'v*'
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: [3.8]
+        os: [ ubuntu-18.04, windows-latest ]
+        include:
+        - os: ubuntu-18.04
+          asset_name: 'package-linux'
+          zip_cmd: 'cd build/package/ && zip -r package.zip addons/' 
+          CC: 'clang'
+          CXX: 'clang'
+
+        - os: windows-latest
+          asset_name: 'package-windows'
+          zip_cmd: 'cd build/package/; powershell Compress-Archive addons/ package.zip'
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        path: 'sm-environment'    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install Linux Deps
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt update
+        sudo apt install -y gcc-multilib g++-multilib
+    - name: Install Windows Deps
+      if: runner.os == 'Windows'
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x86
+    - name: Checkout AMBuild
+      uses: actions/checkout@v2
+      with:
+        repository: 'alliedmodders/ambuild'
+        path: 'ambuild'        
+    - name: Install AMBuild
+      run: |
+        cd ambuild
+        python setup.py build
+        python setup.py install
+    - name: Checkout SourceMod
+      uses: actions/checkout@v2
+      with:
+        repository: 'alliedmodders/sourcemod'
+        ref: '1.10-dev'
+        path: 'sourcemod'
+        submodules: 'recursive'
+    - name: Checkout HL2 SDK
+      uses: actions/checkout@v2
+      with:
+        repository: 'alliedmodders/hl2sdk'
+        ref: 'sdk2013'
+        path: 'hl2sdk-sdk2013'
+    - name: Checkout MM Source
+      uses: actions/checkout@v2
+      with:
+        repository: 'alliedmodders/metamod-source'
+        ref: '1.11-dev'
+        path: 'mmsource'        
+    - name: Checkout Steam Works
+      uses: actions/checkout@v2
+      with:
+       repository: 'ExperimentFailed/Steamworks-SDK'
+       ref: 'main'
+       path: 'steamworks-sdk'
+    - name: Run Build
+      shell: bash
+      working-directory: ./sm-environment
+      run: |
+        mkdir build
+        cd build
+        python ../configure.py --hl2sdk-root=$GITHUB_WORKSPACE --mms-path=$GITHUB_WORKSPACE/mmsource --sm-path=$GITHUB_WORKSPACE/sourcemod --steamworks-path=$GITHUB_WORKSPACE/steamworks-sdk --sdks=sdk2013 --enable-optimize --symbol-files
+        ambuild
+    - name: Zip Release
+      working-directory: ./sm-environment
+      run: |
+        ${{ matrix.zip_cmd }}
+    - name: Release
+      uses: svenstaro/upload-release-action@v2
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: ${{ github.workspace }}/sm-environment/build/package/package.zip
+        asset_name: ${{ matrix.asset_name }}.zip
+        tag: ${{ github.ref }}    

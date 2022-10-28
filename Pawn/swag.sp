@@ -39,7 +39,6 @@ public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 	CreateNative("Steam_IsConnected", native_IsConnected);
 	CreateNative("Steam_SetRule", native_SetRule);
 	CreateNative("Steam_ClearRules", native_ClearRules);
-	CreateNative("Steam_ForceHeartbeat", native_ForceHeartbeat);
 	
 	g_hSteamServersConnected = CreateGlobalForward("Steam_SteamServersConnected", ET_Ignore);
 	g_hSteamServersDisconnected = CreateGlobalForward("Steam_SteamServersDisconnected", ET_Ignore);
@@ -82,11 +81,6 @@ public native_SetRule(Handle:plugin, numParams)
 public native_ClearRules(Handle:plugin, numParams)
 {
 	return SteamWorks_ClearRules();
-}
-
-public native_ForceHeartbeat(Handle:plugin, numParams)
-{
-	return SteamWorks_ForceHeartbeat();
 }
 
 public SteamWorks_SteamServersConnected()
